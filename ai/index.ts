@@ -2,7 +2,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { env } from "../env";
 import { generateText, type CoreMessage } from "ai";
 import { createImage } from "./tools/image";
-import { deleteMemory, getMemories, saveMemory } from "./tools/memory";
+import { deleteMemory, getMemories, saveMemory, clearConversation, resetModel } from "./tools/memory";
 import { dateTimeTool } from "./tools/get-time";
 import { db } from "../redis";
 import { outOfContext } from "./tools/trending";
@@ -63,6 +63,7 @@ export const messageHandler = async (message: string, userId: string) => {
       createImage,
       dateTimeTool,
       outOfContext,
+resetModel,clearConversation
     },
     maxSteps: 10,
     maxRetries: 3,
