@@ -30,12 +30,7 @@ bot.command("personality", async (ctx) => {
     `Current personality: ${personality}\nDescription: ${personalityDescription}`
   );
 });
-bot.command("listMemories", async (ctx) => {
-  const currentPersonality = await db.get("current-personality");
-  if (!currentPersonality) {
-    ctx.reply("No personality set");
-    return;
-  }
+bot.command("listmemories", async (ctx) => {
   const memories = await getMemoriesList();
   ctx.reply(`Memories: ${memories.map((memory) => `- ${memory}`).join("\n")}`);
 });
@@ -51,7 +46,7 @@ bot.command("personalitylist", async (ctx) => {
   });
   ctx.reply(`Personality List: \n ${personalityList.join("\n")}`);
 });
-bot.command("flashPreview", async (ctx) => {
+bot.command("flashpreview", async (ctx) => {
   await db.set("current-model", "gemini-2.5-flash-preview-04-17");
   ctx.reply("Model set to Flash Preview");
 });
@@ -93,16 +88,7 @@ bot.command("clearall", async (ctx) => {
   await deleteKeys(`${currentPersonality}:memory:*`);
   ctx.reply("Conversation and memories cleared");
 });
-bot.command("toggleVoice", async (ctx) => {
-  const voiceMode = await db.get("voice-mode");
-  if (!voiceMode) {
-    await db.set("voice-mode", "true");
-    ctx.reply("Voice mode enabled");
-  } else {
-    await db.del("voice-mode");
-    ctx.reply("Voice mode disabled");
-  }
-});
+
 bot.api.setMyCommands([
   {
     command: "start",
@@ -117,16 +103,20 @@ bot.api.setMyCommands([
     description: "Set the model to Flash",
   },
   {
-    command: "flashPreview",
-    description: "Set the model to Flash Preview",
-  },
-  {
     command: "personality",
     description: "Get the current personality",
   },
   {
+    command: "listmemories",
+    description: "list the memories",
+  },
+  {
     command: "personalitylist",
     description: "Get the list of personalities",
+  },
+  {
+    command: "flashpreview",
+    description: "Set the model to Flash Preview",
   },
   {
     command: "setpersonality",
@@ -139,10 +129,6 @@ bot.api.setMyCommands([
   {
     command: "clearall",
     description: "Clear the conversation and memories",
-  },
-  {
-    command: "toggleVoice",
-    description: "Toggle Voice Mode",
   },
 ]);
 bot.on("message", async (ctx) => {
