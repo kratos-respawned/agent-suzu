@@ -51,7 +51,7 @@ bot.command("personalitylist", async (ctx) => {
   });
   ctx.reply(`Personality List: \n ${personalityList.join("\n")}`);
 });
-bot.command("flash-preview", async (ctx) => {
+bot.command("flashPreview", async (ctx) => {
   await db.set("current-model", "gemini-2.5-flash-preview-04-17");
   ctx.reply("Model set to Flash Preview");
 });
@@ -117,7 +117,7 @@ bot.api.setMyCommands([
     description: "Set the model to Flash",
   },
   {
-    command: "flash-preview",
+    command: "flashPreview",
     description: "Set the model to Flash Preview",
   },
   {
