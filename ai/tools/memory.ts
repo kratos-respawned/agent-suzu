@@ -13,7 +13,9 @@ export const saveMemory = tool({
       ),
   }),
   execute: async ({ memory }) => {
-    const key = `memory:${memory.toLowerCase().replace(/ /g, "-")}`;
+    const currentPersonality = await db.get("current-personality");
+
+    const key = `${currentPersonality}:memory:${memory.toLowerCase().replace(/ /g, "-")}`;
     await db.set(key, memory);
     return {
       success: true,
@@ -27,12 +29,13 @@ export const getMemories = tool({
     "Get all the memories saved by the user, the key for each memory is of the format memory.toLowerCase().replace(/ /g, '-')",
   parameters: z.object({}),
   execute: async ({}) => {
-    const memories = await db.keys("memory:*");
+    console.log("getting memories");
+    const memories = await getMemoriesList();
     return {
       success: true,
-      message: `Here are all the keys for the memories saved: ${memories.join(
-        ", "
-      )}`,
+      message: `Here are all the keys for the memories saved:
+      ${memories.map((memory) => `- ${memory}`).join("\n")}
+      `,
     };
   },
 });
@@ -48,7 +51,8 @@ export const deleteMemory = tool({
       ),
   }),
   execute: async ({ key }) => {
-    await db.del(key);
+    const currentPersonality = await db.get("current-personality");
+    await db.del(`${currentPersonality}:memory:${key}`);
     return {
       success: true,
       message: `Memory deleted successfully for the key ${key}`,
@@ -58,9 +62,10 @@ export const deleteMemory = tool({
 
 export const clearConversation = tool({
   description:
-    "Clear the conversation history for the user, use this when the user is absolutely sure that they are done with the conversation and wants to start a new one.",
+    "Clear the conversation history for the user, use this when the user is done with the conversation and wants to start a new one.",
   parameters: z.object({}),
   execute: async ({}) => {
+    console.log("clearing conversation");
     await deleteKeys(`user-messages`);
     return {
       success: true,
@@ -74,11 +79,22 @@ export const resetModel = tool({
     "WARNING: This tool is dangerous and should only be used when the user is absolutely sure that they want to reset the entire conversation and memories. This will delete all the memories and the conversation history for the user. You should only use this tool when the user asks you to reset the conversation and memories.",
   parameters: z.object({}),
   execute: async ({}) => {
+    const currentPersonality = await db.get("current-personality");
     await deleteKeys(`user-messages`);
-    await deleteKeys(`memory:*`);   
+    await deleteKeys(`${currentPersonality}:memory:*`);
     return {
       success: true,
       message: `Conversation history and memories reset successfully`,
     };
   },
 });
+export const getMemoriesList = async () => {
+  const currentPersonality = await db.get("current-personality");
+  const existingMemories = await db.keys(`${currentPersonality}:memory:*`);
+  const memoryPrompt = existingMemories.map((memory) => {
+    const memoryKey = memory.split(":")[2];
+    const memoryvalue = memoryKey?.replaceAll("-", " ");
+    return memoryvalue;
+  });
+  return memoryPrompt;
+};
