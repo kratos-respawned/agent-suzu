@@ -2,6 +2,7 @@ import { Bot } from "grammy";
 import { env } from "./env";
 import { messageHandler } from "./ai";
 import { db, deleteKeys } from "./redis";
+import { getMemoriesList } from "./ai/tools/memory";
 
 const bot = new Bot(env.BOT_TOKEN);
 bot.command("start", (ctx) => {
@@ -29,6 +30,15 @@ bot.command("personality", async (ctx) => {
     `Current personality: ${personality}\nDescription: ${personalityDescription}`
   );
 });
+bot.command("listMemories", async (ctx) => {
+  const currentPersonality = await db.get("current-personality");
+  if (!currentPersonality) {
+    ctx.reply("No personality set");
+    return;
+  }
+  const memories = await getMemoriesList();
+  ctx.reply(`Memories: ${memories.map((memory) => `- ${memory}`).join("\n")}`);
+});
 bot.command("personalitylist", async (ctx) => {
   const personalities = await db.keys("personality:*");
   if (!personalities) {
@@ -40,6 +50,10 @@ bot.command("personalitylist", async (ctx) => {
     return personalityName;
   });
   ctx.reply(`Personality List: \n ${personalityList.join("\n")}`);
+});
+bot.command("flash-preview", async (ctx) => {
+  await db.set("current-model", "gemini-2.5-flash-preview-04-17");
+  ctx.reply("Model set to Flash Preview");
 });
 bot.command("setpersonality", async (ctx) => {
   const message = ctx.message;
@@ -79,6 +93,16 @@ bot.command("clearall", async (ctx) => {
   await deleteKeys(`${currentPersonality}:memory:*`);
   ctx.reply("Conversation and memories cleared");
 });
+bot.command("toggleVoice", async (ctx) => {
+  const voiceMode = await db.get("voice-mode");
+  if (!voiceMode) {
+    await db.set("voice-mode", "true");
+    ctx.reply("Voice mode enabled");
+  } else {
+    await db.del("voice-mode");
+    ctx.reply("Voice mode disabled");
+  }
+});
 bot.api.setMyCommands([
   {
     command: "start",
@@ -91,6 +115,10 @@ bot.api.setMyCommands([
   {
     command: "flash",
     description: "Set the model to Flash",
+  },
+  {
+    command: "flash-preview",
+    description: "Set the model to Flash Preview",
   },
   {
     command: "personality",
@@ -111,6 +139,10 @@ bot.api.setMyCommands([
   {
     command: "clearall",
     description: "Clear the conversation and memories",
+  },
+  {
+    command: "toggleVoice",
+    description: "Toggle Voice Mode",
   },
 ]);
 bot.on("message", async (ctx) => {

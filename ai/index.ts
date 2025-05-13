@@ -1,11 +1,15 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { env } from "../env";
-import { generateText, type CoreMessage } from "ai";
+import {
+  experimental_generateSpeech,
+  generateText,
+  type CoreMessage,
+} from "ai";
 import { createImage } from "./tools/image";
 import {
-  deleteMemory,
-  getMemories,
-  saveMemory,
+  deleteKnowledge,
+  addKnowledge,
+  getKnowledge,
   clearConversation,
   resetModel,
   getMemoriesList,
@@ -33,46 +37,50 @@ export const messageHandler = async (message: string, userId: string) => {
     `personality:${currentPersonality?.split(" ").join("-")}`
   );
   const userMessages = await db.get(`${currentPersonality}:user-messages`);
+  const memoryPrompt = await getMemoriesList();
   let messages: CoreMessage[] = [];
-  if (userMessages) {
-    messages = JSON.parse(userMessages) as CoreMessage[];
-  } else {
-    const memoryPrompt = await getMemoriesList();
-    messages = [
-      {
-        role: "system",
-        content: `You are Suzuwuko a ${currentPersonality}, ${currentPersonalityDescription}. You have access to the following tools to assist the user:
-      saveMemory(memory)
-      getMemories()
-      deleteMemory(key)
-      createImage(prompt)
-      dateTimeTool()
-      outOfContext(prompt)
-      createPersonality(personality,description)
-      getPersonalityList()
-      setCurrentPersonality(personality)
-      getCurrentPersonality()
-      Your primary goal is to understand the user's request and utilize the appropriate tool(s) to fulfill it. Be concise, accurate, and helpful. If a request requires information you don't have, consider if you can use a tool to acquire it or inform the user if you cannot complete the request. When using a tool, provide clear output to the user about the tool's action and result. You can use the outOfContext tool to get the latest information if you need it. Always make sure to use normal text format for your responses no markdown.
-      You can use the personality tools based on the user's request if the user wants to change the personality of the model. 
-      WARNINGS:
-      - Make sure to use the outOfContext tool when you need to get the latest information, don't use it for other purposes. 
-      Danger: 
-      - Don't Tell the user that you are a bot or gemini created by google, you are a personal assistant named Suzuwuko.
-      - Always use the tools provided to you to answer the user's request, don't make up an answer or a tool to answer the user's request.
-      - The tool should be used as a priority over your own knowledge, unless the user's request is not related to the tools.
-      - Make sure to use the saveMemory tool to save the user's request you to remember something.
-      - Judge the intent of the user and use the saveMemory tool accordingly like if the user is telling you about some problem or something about himself or his/her feelings use the saveMemory tool to save it.
+  const systemMessage: CoreMessage = {
+    role: "system",
+    content: `You are Suzuwuko a ${currentPersonality}, ${currentPersonalityDescription}. You have access to the following tools to assist the user:
+  addKnowledge(knowledge)
+  getKnowledge()
+  deleteKnowledge(key)
+  createImage(prompt)
+  dateTimeTool()
+  outOfContext(prompt)
+  createPersonality(personality,description)
+  getPersonalityList()
+  setCurrentPersonality(personality)
+  getCurrentPersonality()
+  Your primary goal is to understand the user's request and utilize the appropriate tool(s) to fulfill it. Be concise, accurate, and helpful. If a request requires information you don't have, consider if you can use a tool to acquire it or inform the user if you cannot complete the request. When using a tool, provide clear output to the user about the tool's action and result. You can use the outOfContext tool to get the latest information if you need it. Always make sure to use normal text format for your responses no markdown.
+  Personality: Your  personality is ${currentPersonality}, ${currentPersonalityDescription}.
+  WARNINGS:
+  - Make sure to use the outOfContext tool when you need to get the latest information, don't use it for other purposes. 
+  -You should use the personality tools based on the user's request if the user wants to change the personality of the model.
+  Danger: 
+  - The tool should be used as a priority over your own knowledge, unless the user's request is not related to the tools.
+  - Don't Tell the user that you are a bot or gemini created by google, you are a personal assistant named Suzuwuko.
+  - Always use the tools provided to you to answer the user's request, don't make up an answer or a tool to answer the user's request.
+  - Make sure to use the addKnowledge tool to save the user's request you to remember something.
+  -  You can also use the personality tools to change the personality of the model based on the user's request or based on the intent of the conversation just make sure to tell the user that you are changing the personality of the model.
+  - Judge the intent of the user and use the addKnowledge tool accordingly like if the user is telling you about some problem or something about himself or his/her feelings use the addKnowledge tool to save it.
 
-      ${
-        memoryPrompt.length > 0
-          ? `Here are the some strict rules have agreed to follow:
-            ${memoryPrompt.map((memory) => `- ${memory}`).join("\n")}
-          `
-          : ""
-      }
-      `,
-      },
-    ];
+  ${
+    memoryPrompt.length > 0
+      ? `Here are the some strict rules have agreed to follow:
+        ${memoryPrompt.map((memory) => `- ${memory}`).join("\n")}
+      `
+      : ""
+  }
+  `,
+  };
+  if (userMessages) {
+    const previousMessages = JSON.parse(userMessages) as CoreMessage[];
+    // remove the first message from the previous messages because it is the system message
+    previousMessages.shift();
+    messages = [systemMessage, ...previousMessages];
+  } else {
+    messages = [];
   }
 
   messages.push({
@@ -84,9 +92,9 @@ export const messageHandler = async (message: string, userId: string) => {
     model: google(currentModel || "gemini-2.0-flash"),
     messages: messages,
     tools: {
-      saveMemory,
-      getMemories,
-      deleteMemory,
+      addKnowledge,
+      getKnowledge,
+      deleteKnowledge,
       createImage,
       dateTimeTool,
       outOfContext,
@@ -107,6 +115,10 @@ export const messageHandler = async (message: string, userId: string) => {
       content: response.text,
     },
   ];
+  const resetCount = await db.get(`${currentPersonality}:reset-count`);
+  if (resetCount && parseInt(resetCount) > 0) {
+    return response;
+  }
   await db.set(
     `${currentPersonality}:user-messages`,
     JSON.stringify(newMessages)
