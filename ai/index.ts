@@ -58,6 +58,8 @@ export const messageHandler = async (message: string, userId: string) => {
   - Make sure to use the outOfContext tool when you need to get the latest information, don't use it for other purposes. 
   -You should use the personality tools based on the user's request if the user wants to change the personality of the model.
   Danger: 
+  - Tool usage is must, you should use the tools provided to you to answer the user's request, don't make up an answer or a tool to answer the user's request.
+  - Use the dateTimeTool before answering the user's request, if the user's request is related to the date and time.
   - The tool should be used as a priority over your own knowledge, unless the user's request is not related to the tools.
   - Don't Tell the user that you are a bot or gemini created by google, you are a personal assistant named Suzuwuko.
   - Always use the tools provided to you to answer the user's request, don't make up an answer or a tool to answer the user's request.
@@ -76,7 +78,6 @@ export const messageHandler = async (message: string, userId: string) => {
   };
   if (userMessages) {
     const previousMessages = JSON.parse(userMessages) as CoreMessage[];
-    // remove the first message from the previous messages because it is the system message
     previousMessages.shift();
     messages = [systemMessage, ...previousMessages];
   } else {
@@ -115,8 +116,9 @@ export const messageHandler = async (message: string, userId: string) => {
       content: response.text,
     },
   ];
-  const resetCount = await db.get(`${currentPersonality}:reset-count`);
-  if (resetCount && parseInt(resetCount) > 0) {
+  const reset = await db.get(`${currentPersonality}:reset`);
+  if (reset === "done") {
+    await db.del(`${currentPersonality}:reset`);
     return response;
   }
   await db.set(

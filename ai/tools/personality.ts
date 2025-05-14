@@ -20,11 +20,12 @@ export const getCurrentPersonality = tool({
 });
 
 export const setCurrentPersonality = tool({
-  description: "Set the current personality of the model",
+  description: "Change the current personality of the model",
   parameters: z.object({
     personality: z.string(),
   }),
   execute: async ({ personality }) => {
+    const currentPersonality = await db.get("current-personality");
     const personalityExists = await db.get(
       `personality:${personality.split(" ").join("-")}`
     );
@@ -32,6 +33,7 @@ export const setCurrentPersonality = tool({
       return "Personality not found make sure to get the personality list first and then set the current personality if you want to set a new personality";
     }
     await db.set("current-personality", personality);
+    await db.set(`${currentPersonality}:reset`, "done");
     return `Current personality set to ${personality}`;
   },
 });
@@ -45,10 +47,15 @@ export const getPersonalityList = tool({
     if (!personalities) {
       return "No personalities found";
     }
-    return personalities.map((personality) => {
-      const personalityName = personality.split(":")[1];
-      return personalityName;
-    });
+    // return each personality with its description
+    const personalityList = await Promise.all(
+      personalities.map(async (personality) => {
+        const personalityName = personality.split(":")[1];
+        const personalityDescription = await db.get(personality);
+        return `${personalityName}: ${personalityDescription}`;
+      })
+    );
+    return personalityList.join("\n");
   },
 });
 
@@ -71,6 +78,7 @@ export const createPersonality = tool({
       `personality:${personality.split(" ").join("-")}`,
       description
     );
+    await db.set(`${personality}:reset`, "done");
     return `Personality created successfully`;
   },
 });

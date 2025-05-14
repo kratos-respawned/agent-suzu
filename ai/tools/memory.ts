@@ -70,8 +70,7 @@ export const clearConversation = tool({
     const currentPersonality = await db.get("current-personality");
     console.log("clearing conversation");
     await deleteKeys(`${currentPersonality}:user-messages`);
-    await db.incr(`${currentPersonality}:reset-count`);
-    await db.expire(`${currentPersonality}:reset-count`, 60);
+    await db.set(`${currentPersonality}:reset`, "done");
     return {
       success: true,
       message: `Conversation history cleared successfully`,
@@ -87,8 +86,7 @@ export const resetModel = tool({
     const currentPersonality = await db.get("current-personality");
     await deleteKeys(`${currentPersonality}:user-messages`);
     await deleteKeys(`${currentPersonality}:memory:*`);
-    await db.incr(`${currentPersonality}:reset-count`);
-    await db.expire(`${currentPersonality}:reset-count`, 60);
+    await db.set(`${currentPersonality}:reset`,"done");
 
     return {
       success: true,
