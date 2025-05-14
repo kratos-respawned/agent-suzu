@@ -8,6 +8,13 @@ const bot = new Bot(env.BOT_TOKEN);
 bot.command("start", (ctx) => {
   ctx.reply(`Hii, ${ctx.from?.first_name}!`);
 });
+bot.use((c, next) => {
+  if (c.message?.from.id !== env.OWNER_ID) {
+    c.reply("You are not allowed to use the bot");
+    return;
+  }
+  next();
+});
 bot.command("pro", async (ctx) => {
   await db.set("current-model", "gemini-2.5-pro-exp-03-25");
   ctx.reply("Model set to Pro");
