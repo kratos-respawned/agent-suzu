@@ -3,6 +3,7 @@ import { env } from "./env";
 import { messageHandler } from "./ai";
 import { db, deleteKeys } from "./redis";
 import { getMemoriesList } from "./ai/tools/memory";
+import { getTime } from "./ai/tools/get-time";
 
 const bot = new Bot(env.BOT_TOKEN);
 bot.command("start", (ctx) => {
@@ -95,7 +96,10 @@ bot.command("clearall", async (ctx) => {
   await deleteKeys(`${currentPersonality}:memory:*`);
   ctx.reply("Conversation and memories cleared");
 });
-
+bot.command("time", (ctx) => {
+  const time = getTime();
+  ctx.reply(time);
+});
 bot.api.setMyCommands([
   {
     command: "start",
@@ -132,6 +136,10 @@ bot.api.setMyCommands([
   {
     command: "clearconversation",
     description: "Clear the conversation",
+  },
+  {
+    command: "time",
+    description: "Get the current server time",
   },
   {
     command: "clearall",
