@@ -14,7 +14,7 @@ export const outOfContext = tool({
   }),
   execute: async ({ prompt }) => {
     const response = await generateText({
-      model: google("gemini-2.5-pro-exp-03-25", {
+      model: google("gemini-2.0-flash-thinking-exp-01-21", {
         useSearchGrounding: true,
       }),
       prompt: prompt,

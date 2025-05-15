@@ -4,7 +4,7 @@ import { db, deleteKeys } from "../../redis";
 
 export const addKnowledge = tool({
   description:
-    "Add an important information or message about the user that you think is important to remember. You can use this tool to add the user's personality, preferences, or anything else you need to know about the user. You can either use this on user's request or on your own initiative to remember something important about the user.",
+    "A tool to add an important information or message about the user that you think is important to remember. You can use this tool to add the user's personality, preferences, or anything else you need to know about the user. You can either use this on user's request or on your own initiative to remember something important about the user.",
   parameters: z.object({
     knowledge: z
       .string()
@@ -28,14 +28,14 @@ export const addKnowledge = tool({
 
 export const getKnowledge = tool({
   description:
-    "Get all the knowledge about the user that you have saved. This tool should be the primary source of truth for the knowledge about the user, the user's personality or anything else you need to know about the user.",
+    "A tool to get all the knowledge about the user that you have saved. This tool should be the primary source of truth for the knowledge about the user, the user's personality or anything else you need to know about the user.",
   parameters: z.object({}),
   execute: async ({}) => {
     console.log("getting memories");
     const memories = await getMemoriesList();
     return {
       success: true,
-      message: `Here is the list of all the knowledge/information or anything else you need to know about the user saved:
+      message: `Here is the list of all the knowledge/information or anything else you need to know about the user that you have saved:
       ${memories.map((memory) => `- ${memory}`).join("\n")}
       `,
     };
@@ -97,10 +97,12 @@ export const resetModel = tool({
 export const getMemoriesList = async () => {
   const currentPersonality = await db.get("current-personality");
   const existingMemories = await db.keys(`${currentPersonality}:memory:*`);
-  const memoryPrompt = existingMemories.map((memory) => {
-    const memoryKey = memory.split(":")[2];
-    const memoryvalue = memoryKey?.replaceAll("-", " ");
-    return memoryvalue;
+  
+  const memoryPromptPromise = existingMemories.map( async (memory) => {
+    const memoryValue = await db.get(memory);
+    return memoryValue;
   });
+
+  const memoryPrompt = await Promise.all(memoryPromptPromise);
   return memoryPrompt;
 };
