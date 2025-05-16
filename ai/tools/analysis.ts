@@ -1,5 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { logger } from "../logger";
+import { db } from "../../redis";
 
 export const analysis = tool({
   description:
@@ -12,6 +14,10 @@ export const analysis = tool({
       ),
   }),
   execute: async ({ message }) => {
+    const currentPersonality = await db.get("current-personality");
+    logger(
+      `${currentPersonality} invoked analysis tool with message ${message}`
+    );
     return message;
   },
 });

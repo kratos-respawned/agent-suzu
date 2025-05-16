@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import z from "zod";
 import { db, deleteKeys } from "../../redis";
-
+import { logger } from "../logger";
 export const addKnowledge = tool({
   description:
     "A tool to add an important information or message about the user that you think is important to remember. You can use this tool to add the user's personality, preferences, or anything else you need to know about the user. You can either use this on user's request or on your own initiative to remember something important about the user.",
@@ -18,6 +18,7 @@ export const addKnowledge = tool({
     const key = `${currentPersonality}:memory:${knowledge
       .toLowerCase()
       .replace(/ /g, "-")}`;
+    logger(`${currentPersonality} invoked addKnowledge tool with knowledge ${knowledge}`);
     await db.set(key, knowledge);
     return {
       success: true,
@@ -33,6 +34,8 @@ export const getKnowledge = tool({
   execute: async ({}) => {
     console.log("getting memories");
     const memories = await getMemoriesList();
+    const currentPersonality = await db.get("current-personality");
+    logger(`${currentPersonality} invoked getKnowledge tool`);
     return {
       success: true,
       message: `Here is the list of all the knowledge/information or anything else you need to know about the user that you have saved:
@@ -55,6 +58,7 @@ export const deleteKnowledge = tool({
   execute: async ({ key }) => {
     const currentPersonality = await db.get("current-personality");
     await db.del(`${currentPersonality}:memory:${key}`);
+    logger(`${currentPersonality} invoked deleteKnowledge tool with key ${key}`);
     return {
       success: true,
       message: `Knowledge deleted successfully for the key ${key}`,
@@ -71,6 +75,7 @@ export const clearConversation = tool({
     console.log("clearing conversation");
     await deleteKeys(`${currentPersonality}:user-messages`);
     await db.set(`${currentPersonality}:reset`, "done");
+    logger(`${currentPersonality} invoked clearConversation tool`);
     return {
       success: true,
       message: `Conversation history cleared successfully`,
@@ -86,7 +91,8 @@ export const resetModel = tool({
     const currentPersonality = await db.get("current-personality");
     await deleteKeys(`${currentPersonality}:user-messages`);
     await deleteKeys(`${currentPersonality}:memory:*`);
-    await db.set(`${currentPersonality}:reset`,"done");
+    await db.set(`${currentPersonality}:reset`, "done");
+    logger(`${currentPersonality} invoked resetModel tool`);
 
     return {
       success: true,

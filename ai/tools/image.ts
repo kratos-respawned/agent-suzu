@@ -5,6 +5,8 @@ import {
 } from "ai";
 import z from "zod";
 import { google } from "..";
+import { db } from "../../redis";
+import { logger } from "../logger";
 
 export const createImage = tool({
   description:
@@ -17,6 +19,8 @@ export const createImage = tool({
       ),
   }),
   execute: async ({ prompt }) => {
+    const currentPersonality = await db.get("current-personality");
+    logger(`${currentPersonality} invoked createImage tool with prompt ${prompt}`);
     return {
       success: false,
       message:

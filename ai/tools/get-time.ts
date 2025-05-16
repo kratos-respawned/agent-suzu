@@ -1,5 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { db } from "../../redis";
+import { logger } from "../logger";
 export const getTime = () => {
   const now = new Date();
   const dateOptions = {
@@ -24,6 +26,8 @@ export const dateTimeTool = tool({
   description: "Get the current Indian date and time",
   parameters: z.object({}),
   execute: async ({}) => {
+    const currentPersonality = await db.get("current-personality");
+    logger(`${currentPersonality} invoked dateTimeTool`);
     return getTime();
   },
 });

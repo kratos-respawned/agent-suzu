@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { db } from "../../redis";
+import { logger } from "../logger";
 
 export const getCurrentPersonality = tool({
   description:
@@ -10,11 +11,13 @@ export const getCurrentPersonality = tool({
     const currentPersonality = await db.get("current-personality");
     if (!currentPersonality) {
       await db.set("current-personality", "assistant");
+      logger(`No current personality found, set to assistant`);
       return "Current personality set to assistant";
     }   
     const currentPersonalityDescription = await db.get(
       `personality:${currentPersonality}`
     );
+    logger(`${currentPersonality} invoked getCurrentPersonality tool`);
     return `Current personality set to ${currentPersonality}, ${currentPersonalityDescription}`;
   },
 });
@@ -32,6 +35,7 @@ export const setCurrentPersonality = tool({
     if (!personalityExists) {
       return "Personality not found make sure to get the personality list first and then set the current personality if you want to set a new personality";
     }
+    logger(`${currentPersonality} set current personality to ${personality}`);
     await db.set("current-personality", personality);
     await db.set(`${currentPersonality}:reset`, "done");
     return `Current personality set to ${personality}`;
@@ -48,6 +52,8 @@ export const getPersonalityList = tool({
       return "No personalities found";
     }
     // return each personality with its description
+    const currentPersonality = await db.get("current-personality");
+    logger(`${currentPersonality} invoked getPersonalityList tool`);
     const personalityList = await Promise.all(
       personalities.map(async (personality) => {
         const personalityName = personality.split(":")[1];
@@ -78,7 +84,9 @@ export const createPersonality = tool({
       `personality:${personality.split(" ").join("-")}`,
       description
     );
-    await db.set(`${personality}:reset`, "done");
+    const currentPersonality = await db.get("current-personality");
+    logger(`${currentPersonality} created personality ${personality}`);
+    await db.set(`${currentPersonality}:reset`, "done");
     return `Personality created successfully`;
   },
 });

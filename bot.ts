@@ -1,31 +1,33 @@
-import { Bot } from "grammy";
+import { Bot, Context, type NextFunction } from "grammy";
 import { env } from "./env";
 import { messageHandler } from "./ai";
 import { db, deleteKeys } from "./redis";
 import { getMemoriesList } from "./ai/tools/memory";
 import { getTime } from "./ai/tools/get-time";
+import { logger } from "./ai/logger";
 
 const bot = new Bot(env.BOT_TOKEN);
-bot.command("start", (ctx) => {
-  ctx.reply(`Hii, ${ctx.from?.first_name}!`);
-});
-bot.use((c, next) => {
+const middleWare = (c: Context, next: NextFunction) => {
   if (c.message?.from.id !== env.OWNER_ID) {
     c.reply("You are not allowed to use the bot");
+    logger(`${c.message?.from.id}: ${c.message?.from.username} tried to use the bot`);
     return;
   }
   next();
+};
+bot.command("start", (ctx) => {
+  ctx.reply(`Hii, ${ctx.from?.first_name}!`);
 });
-bot.command("pro", async (ctx) => {
+bot.use(middleWare).command("pro", async (ctx) => {
   await db.set("current-model", "gemini-2.5-pro-exp-03-25");
   ctx.reply("Model set to Pro");
 });
-bot.command("flash", async (ctx) => {
+bot.use(middleWare).command("flash", async (ctx) => {
   await db.set("current-model", "gemini-2.0-flash");
   ctx.reply("Model set to Flash");
 });
 
-bot.command("personality", async (ctx) => {
+bot.use(middleWare).command("personality", async (ctx) => {
   const personality = await db.get("current-personality");
   if (!personality) {
     ctx.reply("No personality set");
@@ -38,11 +40,11 @@ bot.command("personality", async (ctx) => {
     `Current personality: ${personality}\nDescription: ${personalityDescription}`
   );
 });
-bot.command("listmemories", async (ctx) => {
+bot.use(middleWare).command("listmemories", async (ctx) => {
   const memories = await getMemoriesList();
   ctx.reply(`Memories: ${memories.map((memory) => `- ${memory}`).join("\n")}`);
 });
-bot.command("personalitylist", async (ctx) => {
+bot.use(middleWare).command("personalitylist", async (ctx) => {
   const personalities = await db.keys("personality:*");
   if (!personalities) {
     ctx.reply("No personalities found");
@@ -54,11 +56,11 @@ bot.command("personalitylist", async (ctx) => {
   });
   ctx.reply(`Personality List: \n ${personalityList.join("\n")}`);
 });
-bot.command("flashpreview", async (ctx) => {
+bot.use(middleWare).command("flashpreview", async (ctx) => {
   await db.set("current-model", "gemini-2.5-flash-preview-04-17");
   ctx.reply("Model set to Flash Preview");
 });
-bot.command("setpersonality", async (ctx) => {
+bot.use(middleWare).command("setpersonality", async (ctx) => {
   const message = ctx.message;
   if (!message) {
     ctx.reply("Please provide a personality to set");
@@ -77,7 +79,7 @@ bot.command("setpersonality", async (ctx) => {
   await db.set("current-personality", personality);
   ctx.reply(`Current personality set to ${personality}`);
 });
-bot.command("clearconversation", async (ctx) => {
+bot.use(middleWare).command("clearconversation", async (ctx) => {
   const currentPersonality = await db.get("current-personality");
   if (!currentPersonality) {
     ctx.reply("No personality set");
@@ -86,7 +88,7 @@ bot.command("clearconversation", async (ctx) => {
   await db.del(`${currentPersonality}:user-messages`);
   ctx.reply("Conversation cleared");
 });
-bot.command("clearall", async (ctx) => {
+bot.use(middleWare).command("clearall", async (ctx) => {
   const currentPersonality = await db.get("current-personality");
   if (!currentPersonality) {
     ctx.reply("No personality set");
@@ -96,7 +98,7 @@ bot.command("clearall", async (ctx) => {
   await deleteKeys(`${currentPersonality}:memory:*`);
   ctx.reply("Conversation and memories cleared");
 });
-bot.command("time", (ctx) => {
+bot.use(middleWare).command("time", (ctx) => {
   const time = getTime();
   ctx.reply(time);
 });
@@ -146,20 +148,19 @@ bot.api.setMyCommands([
     description: "Clear the conversation and memories",
   },
 ]);
-bot.on("message", async (ctx) => {
+bot.use(middleWare).on("message", async (ctx) => {
   const message = ctx.message;
-  if (ctx.from.id !== env.OWNER_ID) {
-    ctx.reply("You are not authorized to use this bot");
-    return;
-  }
   const messageText = message.text;
   if (!messageText) {
     ctx.reply("Please provide a message to process");
     return;
   }
   const response = await messageHandler(messageText, ctx.from.id.toString());
-
-  ctx.reply(response.text);
+  try {
+    ctx.reply(response.text, { parse_mode: "Markdown" });
+  } catch (e: unknown) {
+    ctx.reply(response.text);
+  }
   response.files.forEach((file) => {
     if (file.mimeType.startsWith("image/")) {
       ctx.replyWithPhoto(file.base64);

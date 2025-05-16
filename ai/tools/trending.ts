@@ -1,6 +1,8 @@
 import { generateText, tool } from "ai";
 import { z } from "zod";
 import { google } from "..";
+import { db } from "../../redis";
+import { logger } from "../logger";
 
 export const outOfContext = tool({
   description:
@@ -13,12 +15,35 @@ export const outOfContext = tool({
       ),
   }),
   execute: async ({ prompt }) => {
-    const response = await generateText({
-      model: google("gemini-2.0-flash-thinking-exp-01-21", {
-        useSearchGrounding: true,
-      }),
-      prompt: prompt,
-    });
-    return response.text;
+    const currentPersonality = await db.get("current-personality");
+    logger(
+      `${currentPersonality} invoked outOfContext tool with prompt ${prompt}`
+    );
+    try {
+      const response = await generateText({
+        model: google("gemini-2.5-pro-exp-03-25", {
+          useSearchGrounding: true,
+        }),
+        maxRetries: 1,
+        prompt: prompt,
+      });
+      return response.text;
+    } catch (e: unknown) {
+      try {
+        const response = await generateText({
+          model: google("gemini-2.0-flash-thinking-exp-01-21", {
+            useSearchGrounding: true,
+          }),
+          maxRetries: 1,
+          prompt: prompt,
+        });
+        return response.text;
+      } catch (e: unknown) {
+        logger(
+          `${currentPersonality} error in outOfContext tool with prompt ${prompt} ${e}`
+        );
+        return "The tool failed to get the latest information. Please it report this issue so that it can be fixed";
+      }
+    }
   },
 });
