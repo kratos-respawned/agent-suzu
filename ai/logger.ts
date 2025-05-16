@@ -7,5 +7,5 @@ export const logger = async (message: string) => {
     return;
   }
   console.log(message);
-  await bot.api.sendMessage(chatId, message);
+  await bot.api.sendMessage(Number(chatId), message);
 };
