@@ -1,10 +1,11 @@
 import { bot } from "../bot";
 
-export const logger = (message: string) => {
+export const logger = async (message: string) => {
   const chatId = process.env.LOG_CHANNEL_ID;
   if (!chatId) {
     console.log(message);
     return;
   }
-  bot.api.sendMessage(chatId, message);
+  console.log(message);
+  await bot.api.sendMessage(chatId, message);
 };

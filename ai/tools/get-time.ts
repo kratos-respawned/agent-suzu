@@ -27,7 +27,7 @@ export const dateTimeTool = tool({
   parameters: z.object({}),
   execute: async ({}) => {
     const currentPersonality = await db.get("current-personality");
-    logger(`${currentPersonality} invoked dateTimeTool`);
+   await logger(`${currentPersonality} invoked dateTimeTool`);
     return getTime();
   },
 });

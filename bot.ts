@@ -7,10 +7,10 @@ import { getTime } from "./ai/tools/get-time";
 import { logger } from "./ai/logger";
 
 const bot = new Bot(env.BOT_TOKEN);
-const middleWare = (c: Context, next: NextFunction) => {
+const middleWare = async (c: Context, next: NextFunction) => {
   if (c.message?.from.id !== env.OWNER_ID) {
     c.reply("You are not allowed to use the bot");
-    logger(`${c.message?.from.id}: ${c.message?.from.username} tried to use the bot`);
+   await logger(`${c.message?.from.id}: ${c.message?.from.username} tried to use the bot`);
     return;
   }
   next();

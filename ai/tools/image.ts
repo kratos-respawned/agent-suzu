@@ -20,7 +20,7 @@ export const createImage = tool({
   }),
   execute: async ({ prompt }) => {
     const currentPersonality = await db.get("current-personality");
-    logger(`${currentPersonality} invoked createImage tool with prompt ${prompt}`);
+  await  logger(`${currentPersonality} invoked createImage tool with prompt ${prompt}`);
     return {
       success: false,
       message:

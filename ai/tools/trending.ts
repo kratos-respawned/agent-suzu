@@ -16,7 +16,7 @@ export const outOfContext = tool({
   }),
   execute: async ({ prompt }) => {
     const currentPersonality = await db.get("current-personality");
-    logger(
+    await logger(
       `${currentPersonality} invoked outOfContext tool with prompt ${prompt}`
     );
     try {
@@ -39,7 +39,7 @@ export const outOfContext = tool({
         });
         return response.text;
       } catch (e: unknown) {
-        logger(
+        await logger(
           `${currentPersonality} error in outOfContext tool with prompt ${prompt} ${e}`
         );
         return "The tool failed to get the latest information. Please it report this issue so that it can be fixed";

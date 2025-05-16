@@ -15,7 +15,7 @@ export const analysis = tool({
   }),
   execute: async ({ message }) => {
     const currentPersonality = await db.get("current-personality");
-    logger(
+    await logger(
       `${currentPersonality} invoked analysis tool with message ${message}`
     );
     return message;
