@@ -1,4 +1,4 @@
-import { Bot, Context, type NextFunction } from "grammy";
+import { Bot, Context, GrammyError, type NextFunction } from "grammy";
 import { env } from "./env";
 import { messageHandler } from "./ai";
 import { db, deleteKeys } from "./redis";
@@ -156,16 +156,22 @@ bot.use(middleWare).on("message", async (ctx) => {
     return;
   }
   const response = await messageHandler(messageText, ctx.from.id.toString());
-  try {
-    ctx.reply(response.text, { parse_mode: "Markdown" });
-  } catch (e: unknown) {
     ctx.reply(response.text);
-  }
   response.files.forEach((file) => {
     if (file.mimeType.startsWith("image/")) {
       ctx.replyWithPhoto(file.base64);
     }
   });
 });
-
+bot.catch(async(err) => {
+  console.log(err);
+  if(err.error instanceof GrammyError){
+    const { payload, description } = err.error;
+    await logger(
+      `Error occured in bot: ${description} for the response :: ${JSON.stringify((payload.text as string).slice(0,200))}`
+    );
+    return;
+  }
+  await logger(`Error occured in bot: ${err.message}`);
+});
 export { bot };
