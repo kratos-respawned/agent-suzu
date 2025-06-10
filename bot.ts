@@ -10,7 +10,9 @@ const bot = new Bot(env.BOT_TOKEN);
 const middleWare = async (c: Context, next: NextFunction) => {
   if (c.message?.from.id !== env.OWNER_ID) {
     c.reply("You are not allowed to use the bot");
-   await logger(`${c.message?.from.id}: ${c.message?.from.username} tried to use the bot`);
+    await logger(
+      `${c.message?.from.id}: ${c.message?.from.username} tried to use the bot`
+    );
     return;
   }
   next();
@@ -156,19 +158,24 @@ bot.use(middleWare).on("message", async (ctx) => {
     return;
   }
   const response = await messageHandler(messageText, ctx.from.id.toString());
-    ctx.reply(response.text);
-  response.files.forEach((file) => {
-    if (file.mimeType.startsWith("image/")) {
-      ctx.replyWithPhoto(file.base64);
-    }
-  });
+  if (response.files && response.files.length > 0) {
+    response.files.forEach((file) => {
+      if (file.mimeType.startsWith("image/")) {
+        ctx.replyWithPhoto(file.base64);
+      }
+    });
+    return;
+  }
+  ctx.reply(response.text);
 });
-bot.catch(async(err) => {
+bot.catch(async (err) => {
   console.log(err);
-  if(err.error instanceof GrammyError){
+  if (err.error instanceof GrammyError) {
     const { payload, description } = err.error;
     await logger(
-      `Error occured in bot: ${description} for the response :: ${JSON.stringify((payload.text as string).slice(0,200))}`
+      `Error occured in bot: ${description} for the response :: ${JSON.stringify(
+        (payload.text as string).slice(0, 200)
+      )}`
     );
     return;
   }
