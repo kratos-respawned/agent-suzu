@@ -115,7 +115,7 @@ export const messageHandler = async (message: string, ctx: Context) => {
     maxSteps: 10,
     maxRetries: 1,
   });
-  writeFile("response.json", JSON.stringify(response, null, 2));
+  
 
   const { response: responseBody } = response;
   const { messages: modelMessages } = responseBody;
