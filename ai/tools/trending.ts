@@ -27,7 +27,10 @@ export const outOfContext = tool({
         maxRetries: 1,
         prompt: prompt,
       });
-      return response.text;
+      return {
+        success: true,
+        message: response.text
+      };
     } catch (e: unknown) {
       try {
         const response = await generateText({
@@ -37,12 +40,18 @@ export const outOfContext = tool({
           maxRetries: 1,
           prompt: prompt,
         });
-        return response.text;
+        return {
+          success: true,
+          message: response.text
+        };
       } catch (e: unknown) {
         await logger(
           `${currentPersonality} error in outOfContext tool with prompt ${prompt} ${e}`
         );
-        return "The tool failed to get the latest information. Please it report this issue so that it can be fixed";
+        return {
+          success: false,
+          message: "The tool failed to get the latest information. Please it report this issue so that it can be fixed"
+        };
       }
     }
   },

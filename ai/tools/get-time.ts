@@ -28,6 +28,9 @@ export const dateTimeTool = tool({
   execute: async ({}) => {
     const currentPersonality = await db.get("current-personality");
    await logger(`${currentPersonality} invoked dateTimeTool`);
-    return getTime();
+    return {
+      success: true,
+      message: getTime()
+    };
   },
 });

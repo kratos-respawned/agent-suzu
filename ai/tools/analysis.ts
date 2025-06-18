@@ -18,6 +18,9 @@ export const analysis = tool({
     await logger(
       `${currentPersonality} invoked analysis tool with message ${message}`
     );
-    return message;
+    return {
+      success: true,
+      message: message
+    };
   },
 });

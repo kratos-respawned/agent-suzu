@@ -2,7 +2,7 @@ import { Bot, Context, GrammyError, type NextFunction } from "grammy";
 import { env } from "./env";
 import { messageHandler } from "./ai";
 import { db, deleteKeys } from "./redis";
-import { getMemoriesList } from "./ai/tools/memory";
+import { getMemoriesList, MemoryTools } from "./ai/tools/memory";
 import { getTime } from "./ai/tools/get-time";
 import { logger } from "./ai/logger";
 
@@ -44,7 +44,9 @@ bot.use(middleWare).command("personality", async (ctx) => {
 });
 bot.use(middleWare).command("listmemories", async (ctx) => {
   const memories = await getMemoriesList();
-  ctx.reply(`Memories: ${memories.map((memory) => `- ${memory}`).join("\n")}`);
+  ctx.reply(
+    `Memories: ${memories.map((memory) => `- ${memory.value}`).join("\n")}`
+  );
 });
 bot.use(middleWare).command("personalitylist", async (ctx) => {
   const personalities = await db.keys("personality:*");
@@ -157,16 +159,8 @@ bot.use(middleWare).on("message", async (ctx) => {
     ctx.reply("Please provide a message to process");
     return;
   }
-  const response = await messageHandler(messageText, ctx.from.id.toString());
-  if (response.files && response.files.length > 0) {
-    response.files.forEach((file) => {
-      if (file.mimeType.startsWith("image/")) {
-        ctx.replyWithPhoto(file.base64);
-      }
-    });
-    return;
-  }
-  ctx.reply(response.text);
+  const response = await messageHandler(messageText, ctx);
+  ctx.reply(response.text || "No response from bot");
 });
 bot.catch(async (err) => {
   console.log(err);
@@ -181,4 +175,5 @@ bot.catch(async (err) => {
   }
   await logger(`Error occured in bot: ${err.message}`);
 });
+
 export { bot };
