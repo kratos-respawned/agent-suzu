@@ -23,13 +23,14 @@ export const analysisTool = (ctx: Context) => tool({
       `${currentPersonality} invoked analysis tool with message ${message}`
     );
     await ctx.reply(userMessage);
+    if (ctx.chat?.id) {
+      await ctx.api.sendChatAction(ctx.chat?.id, "typing");
+    }
     const response = await generateText({
       model: google(analysisType === "fast" ? "gemini-2.5-flash" : "gemini-2.5-pro"),
       prompt: message,
       tools: {
-        // @ts-ignore
         google_search: google.tools.googleSearch({}),
-        // @ts-ignore
         url_context: google.tools.urlContext({
         })
       }

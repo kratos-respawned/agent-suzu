@@ -9,6 +9,7 @@ import { db } from "../utils/redis.js";
 import { analysisTool } from "./tools/analysis.js";
 
 import type { Context } from "grammy";
+import { ReminderTool } from "./tools/reminder.js";
 
 export const google = createGoogleGenerativeAI({
   apiKey: env.AI_KEY,
@@ -103,15 +104,17 @@ export const messageHandler = async (message: string, ctx: Context) => {
   if (ctx.chat?.id) {
     ctx.api.sendChatAction(ctx.chat?.id, "typing");
   }
+  const reminder = ReminderTool(ctx);
   const response = await generateText({
-    model: google("gemini-2.5-flash"),
+    model: google(currentModel as Parameters<typeof google>[0]),
     messages: messages,
     tools: {
       MemoryTools,
       PersonalityTools,
       createImage,
       dateTimeTool,
-      analysis
+      analysis,
+      reminder
     },
     maxRetries: 1,
     stopWhen: stepCountIs(10)
