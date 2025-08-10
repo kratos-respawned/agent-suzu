@@ -4,16 +4,17 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "tsc",
-    "start": "bun run dist/index.js",
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun src/index.ts",
     "check": "tsc --noEmit"
   },
   "devDependencies": {
-    "@types/bun": "latest",
-    "@types/node": "^20.11.17"
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
   },
   "dependencies": {
-    "typescript": "^5.8.3",
     "@ai-sdk/google": "^2.0.3",
     "ai": "^5.0.8",
     "arktype": "^2.1.20",
