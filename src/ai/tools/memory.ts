@@ -5,7 +5,7 @@ import { logger } from "../logger.js";
 
 export const MemoryTools = tool({
   description:
-    "A tool to add an important information or message about the user that you think is important to remember. You can use this tool to add the user's preferences, recommendations, or anything else you need to know about the user. You can either use this on user's request or on your own initiative to remember something important about the user.",
+    "A tool to add an important information or message about the user that you think is important to remember. You can use this tool to add the user's preferences, recommendations, or anything else you need to know about the user. You can either use this on user's request or on your own initiative to remember something important about the user. ",
   inputSchema: z.object({
     knowledge: z
       .string()
@@ -18,14 +18,14 @@ export const MemoryTools = tool({
         "The key for the knowledge to add, keep it unique and within 3-4 words. If you are using this tool to delete a knowledge this should be the key of the knowledge to delete else keep it blank."
       ),
     action: z
-      .enum(["add", "get", "delete", "clear", "reset"])
-      .describe("The action that is to be performed"),
+      .enum(["add", "getAll", "delete", "clear", "reset"])
+      .describe("The action that is to be performed, add is to add a new knowledge, get is to get all or list all the knowledge, delete is to delete a knowledge, clear is to clear the conversation history, reset is to reset the model."),
   }),
   execute: async ({ knowledge, action, key }, { messages, toolCallId }) => {
     switch (action) {
       case "add":
         return addKnowledge.execute && await addKnowledge.execute({ key, knowledge }, { messages, toolCallId });
-      case "get":
+      case "getAll":
         return getKnowledge.execute && await getKnowledge.execute({}, { messages, toolCallId });
       case "delete":
         return deleteKnowledge.execute && await deleteKnowledge.execute({ key }, { messages, toolCallId });
@@ -80,8 +80,8 @@ const getKnowledge = tool({
     await logger(`${currentPersonality} invoked getKnowledge tool`);
     return {
       success: true,
-      message: `Here is the list of all the knowledge/information or anything else you need to know about the user that you have saved:
-      ${memories.map((memory) => `- ${memory.value}`).join("\n")}
+      message: `Here is the list of all the knowledge/information or anything else you need to know about the user that you have saved in the format of key: value:
+      ${memories.map((memory) => `- ${memory.key.split(":")[2]}: ${memory.value}`).join("\n")}
       `,
     };
   },

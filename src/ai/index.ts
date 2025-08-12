@@ -1,6 +1,6 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { env } from "../utils/env.js";
-import { generateText, stepCountIs, type ModelMessage, type ToolContent } from "ai";
+import { convertToModelMessages, generateText, stepCountIs, type ModelMessage, type ToolContent } from "ai";
 import { createImageTool } from "./tools/image.js";
 import { MemoryTools, getMemoriesList } from "./tools/memory.js";
 import { PersonalityTools } from "./tools/personality.js";
@@ -10,12 +10,13 @@ import { analysisTool } from "./tools/analysis.js";
 
 import type { Context } from "grammy";
 import { ReminderTool } from "./tools/reminder.js";
+import type { File } from "grammy/types";
 
 export const google = createGoogleGenerativeAI({
   apiKey: env.AI_KEY,
 });
 
-export const messageHandler = async (message: string, ctx: Context) => {
+export const messageHandler = async (message: string | File, ctx: Context, caption?: string, mimeType?: string, replyToMessage?: string) => {
 
   const currentModel = await db.get("current-model");
   if (!currentModel) {
@@ -46,6 +47,8 @@ export const messageHandler = async (message: string, ctx: Context) => {
   - If a request involves time or date (e.g., “how many days until X”, “what;s the time”), you must use the given tool.
   - If the user asks something related to date or time, always use the date/time tool to get the accurate value.
   - Generate images using the createImage tool when the user asks for an image.
+  - You can use the analysis tool to analyze the file or image if necessary else you are capable enough of handling basic queries.
+  - If the user sends a file or image, you don't need to give any context to the file or image, just generate a command that can be used to analyze the file or image.
   ============================
   HOW TO HANDLE USER KNOWLEDGE:
   ============================
@@ -95,11 +98,43 @@ export const messageHandler = async (message: string, ctx: Context) => {
   } else {
     messages = [systemMessage];
   }
-  const analysis = analysisTool(ctx);
-  messages.push({
-    role: "user",
-    content: message,
-  });
+  let analysis = analysisTool(ctx);
+  if (typeof message === "string") {
+    messages.push(
+      {
+        content: replyToMessage ? `The user replied to the previous message: ${replyToMessage} and sent this message: ${message}` : message,
+        role: "user",
+      },
+    );
+
+  } else {
+    const fileUrl = `https://api.telegram.org/file/bot${env.BOT_TOKEN}/${message.file_path}`;
+    caption = caption || "no caption was provided by the user, use the image and previous messages context to generate a response";
+    analysis = analysisTool(ctx, {
+      filePath: fileUrl,
+      mimeType: mimeType || "",
+      image: !mimeType,
+    });
+    messages.push({
+      role: "user",
+      content: [
+        mimeType ?
+          {
+            type: "file",
+            mediaType: mimeType,
+            data: fileUrl
+          }
+          : {
+            image: fileUrl,
+            type: "image",
+          }
+        , {
+          text: caption,
+          type: "text"
+        }
+      ],
+    });
+  }
   const createImage = createImageTool(ctx);
   if (ctx.chat?.id) {
     ctx.api.sendChatAction(ctx.chat?.id, "typing");
