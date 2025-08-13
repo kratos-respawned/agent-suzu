@@ -1,5 +1,5 @@
-import { bot } from "../utils/bot.js";
-import { splitIntoChunks } from "../utils/chukify.js";
+import { bot } from "./bot.js";
+import { splitIntoChunks } from "./chukify.js";
 
 export const logger = async (message: string) => {
   const chatId = process.env.LOG_CHANNEL_ID;

@@ -4,7 +4,7 @@ import { google, messageHandler } from "../ai/index.js";
 import { db, deleteKeys } from "./redis.js";
 import { getMemoriesList, MemoryTools } from "../ai/tools/memory.js";
 import { getTime } from "../ai/tools/get-time.js";
-import { logger } from "../ai/logger.js";
+import { logger } from "./logger.js";
 import { splitIntoChunks } from "./chukify.js";
 
 const bot = new Bot(env.BOT_TOKEN);

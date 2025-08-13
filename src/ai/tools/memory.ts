@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import z from "zod";
 import { db, deleteKeys } from "../../utils/redis.js";
-import { logger } from "../logger.js";
+import { logger } from "../../utils/logger.js";
 
 export const MemoryTools = tool({
   description:

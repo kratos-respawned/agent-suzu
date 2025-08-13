@@ -2,7 +2,7 @@ import { tool, generateText } from "ai";
 import { z } from "zod";
 import { google } from "../index.js";
 import { db } from "../../utils/redis.js";
-import { logger } from "../logger.js";
+import { logger } from "../../utils/logger.js";
 import { GrammyError, InputFile, type Context } from "grammy";
 
 export const createImageTool = (ctx: Context) =>
