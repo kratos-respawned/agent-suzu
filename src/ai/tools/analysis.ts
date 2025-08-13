@@ -91,7 +91,6 @@ Your primary function is to act on the [Tool-Call-Required] command. Do not apol
           })
         }
       })
-      await Bun.write("response.json", JSON.stringify(response, null, 2))
       await logger(`here is the response from the analysis tool: ${response.text}`)
       return {
         success: true,
