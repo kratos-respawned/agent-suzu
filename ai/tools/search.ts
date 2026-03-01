@@ -1,15 +1,12 @@
 import { embed, tool } from "ai"
-import Redis from "ioredis"
 import { z } from "zod"
 import { google } from ".."
-import { env } from "../../env"
-
-
-
+import { knowledgeDB } from "../../redis"
+import { logger } from "../../src/utils/logger"
 
 
 const VECTOR_DIM = 768
-const redis = new Redis(env.BOOKMARK_DB_URL)
+
 
 function toFloat32Buffer(arr: number[]): Buffer {
     return Buffer.from(new Float32Array(arr).buffer)
@@ -40,22 +37,29 @@ function parseSearchResults(raw: any[]): { id: string; resolvedUrls?: string; au
 }
 
 async function multiSearchBookmarks(queries: string[], topK = 3) {
-    await redis.connect()
-    const allResults = (await Promise.all(
-        queries.map((q) => searchBookmarks(q, topK))
-    )).flat();
 
-    const seen = new Map<string, (typeof allResults)[number]>();
-    for (const r of allResults) {
-        const key = r.id;
-        const existing = seen.get(key);
-        if (!existing || r.score < existing.score) {
-            seen.set(key, r);
+    try {
+
+        const allResults = (await Promise.all(
+            queries.map((q) => searchBookmarks(q, topK))
+        )).flat();
+
+        const seen = new Map<string, (typeof allResults)[number]>();
+        for (const r of allResults) {
+            const key = r.id;
+            const existing = seen.get(key);
+            if (!existing || r.score < existing.score) {
+                seen.set(key, r);
+            }
         }
+
+        return [...seen.values()]
+            .sort((a, b) => b.score - a.score).slice(0, topK);
     }
-    redis.disconnect()
-    return [...seen.values()]
-        .sort((a, b) => b.score - a.score).slice(0, topK);
+    catch (e) {
+        await logger(`Error occured in multiSearchBookmarks: ${e}`)
+        return []
+    }
 }
 
 async function searchBookmarks(query: string, topK = 5) {
@@ -66,7 +70,7 @@ async function searchBookmarks(query: string, topK = 5) {
         providerOptions: { google: { outputDimensionality: VECTOR_DIM } },
     })
 
-    const raw = await redis.call(
+    const raw = await knowledgeDB.call(
         "FT.SEARCH", "tweets_idx",
         "*=>[KNN $K @embedding $BLOB AS vector_score]",
         "PARAMS", "4", "K", String(topK), "BLOB", toFloat32Buffer(embedding),

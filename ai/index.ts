@@ -24,7 +24,7 @@ export const messageHandler = async (message: string | File, ctx: Context, capti
 
   const currentModel = await db.get("current-model");
   if (!currentModel) {
-    await db.set("current-model", "gemini-2.0-flash");
+    await db.set("current-model", "gemini-2.5-flash" satisfies Parameters<typeof google>[0]);
   }
   const currentPersonality = await MemoryUtils.getCurrentPersonality();
   const currentPersonalityDescription = await MemoryUtils.getCurrentPersonalityDescription(currentPersonality);
@@ -141,13 +141,11 @@ export const messageHandler = async (message: string | File, ctx: Context, capti
       MemoryTools,
       searchBookmarksTool,
       PersonalityTools,
-
       dateTimeTool,
-
       reminder
     },
     maxRetries: 1,
-    stopWhen: stepCountIs(10)
+    stopWhen: stepCountIs(3)
   });
 
 
