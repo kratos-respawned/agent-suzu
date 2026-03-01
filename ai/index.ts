@@ -1,34 +1,37 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { env } from "../env";
-import { generateText, type CoreMessage, type ToolContent } from "ai";
-import { createImageTool } from "./tools/image";
-import { MemoryTools, getMemoriesList } from "./tools/memory";
-import { PersonalityTools } from "./tools/personality";
-import { dateTimeTool } from "./tools/get-time";
-import { db } from "../redis";
-import { outOfContext } from "./tools/trending";
-import { analysis } from "./tools/analysis";
-import { logger } from "./logger";
+import { generateText, stepCountIs, type ModelMessage } from "ai";
+
+import { dateTimeTool } from "./tools/get-time.js";
+
+import { MemoryTools } from "./tools/memory.js";
+import { PersonalityTools } from "./tools/personality.js";
+
+
 import type { Context } from "grammy";
-import { writeFile } from "fs/promises";
+import type { File } from "grammy/types";
+
+import { env } from "../env.js";
+import { MemoryUtils } from "../memory.utils.js";
+import { db } from "../redis.js";
+import { ReminderTool } from "./tools/reminder.js";
+import { searchBookmarksTool } from "./tools/search.js";
+
 export const google = createGoogleGenerativeAI({
   apiKey: env.AI_KEY,
 });
 
-export const messageHandler = async (message: string, ctx: Context) => {
-  const userId = ctx.from?.id;
+export const messageHandler = async (message: string | File, ctx: Context, caption?: string, mimeType?: string, replyToMessage?: string) => {
+
   const currentModel = await db.get("current-model");
   if (!currentModel) {
     await db.set("current-model", "gemini-2.0-flash");
   }
-  const currentPersonality = await db.get("current-personality");
-  const currentPersonalityDescription = await db.get(
-    `personality:${currentPersonality?.split(" ").join("-")}`
-  );
+  const currentPersonality = await MemoryUtils.getCurrentPersonality();
+  const currentPersonalityDescription = await MemoryUtils.getCurrentPersonalityDescription(currentPersonality);
   const userMessages = await db.get(`${currentPersonality}:user-messages`);
-  const memoryPrompt = await getMemoriesList();
-  let messages: CoreMessage[] = [];
-  const systemMessage: CoreMessage = {
+  const { memoryPrompt } = await MemoryUtils.getMemoriesList();
+  let messages: ModelMessage[] = [];
+  const systemMessage: ModelMessage = {
     role: "system",
     content: `You are Suzuwuko, a ${currentPersonality}. ${currentPersonalityDescription}.
   You are a smart, adaptable personal assistant whose job is to understand the user's intent and respond helpfully, concisely, and clearly.
@@ -39,12 +42,12 @@ export const messageHandler = async (message: string, ctx: Context) => {
   - Always use the appropriate tool to answer a user request when applicable.
   - Do not fabricate tools, functions, or facts.
   - This is a very strict requirement,Never state that you are a bot or that you were created by Google. You are Suzuwuko, a personal assistant.
+  - Never return the response with markdown or html tags unless it is a code or a link, this makes the response look ugly.
   - If a request cannot be fulfilled, explain clearly why but there should be no mention of google or gemini or developement status of the model.
   - Always make sure to respond with a message you cant return empty message.
-  DATE/TIME:
   - If a request involves time or date (e.g., “how many days until X”, “what;s the time”), you must use the given tool.
   - If the user asks something related to date or time, always use the date/time tool to get the accurate value.
-  
+  - If the user asks something related to bookmarks, you must use the searchBookmarksTool to search the user's bookmarks.
   ============================
   HOW TO HANDLE USER KNOWLEDGE:
   ============================
@@ -88,38 +91,70 @@ export const messageHandler = async (message: string, ctx: Context) => {
   };
 
   if (userMessages) {
-    const previousMessages = JSON.parse(userMessages) as CoreMessage[];
+    const previousMessages = JSON.parse(userMessages) as ModelMessage[];
     previousMessages.shift();
     messages = [systemMessage, ...previousMessages];
   } else {
-    messages = [];
+    messages = [systemMessage];
   }
 
-  messages.push({
-    role: "user",
-    content: message,
-  });
-
-  const createImage = createImageTool(ctx);
+  if (typeof message === "string") {
+    messages.push(
+      {
+        content: replyToMessage ? `The user replied to the previous message: ${replyToMessage} and sent this message: ${message}` : message,
+        role: "user",
+      },
+    );
+  }
+  //  else {
+  //   const fileUrl = `https://api.telegram.org/file/bot${env.BOT_TOKEN}/${message.file_path}`;
+  //   caption = caption || "no caption was provided by the user, use the image and previous messages context to generate a response";
+  //   messages.push({
+  //     role: "user",
+  //     content: [
+  //       mimeType ?
+  //         {
+  //           type: "file",
+  //           mediaType: mimeType,
+  //           data: fileUrl
+  //         }
+  //         : {
+  //           image: fileUrl,
+  //           type: "image",
+  //         }
+  //       , {
+  //         text: caption,
+  //         type: "text"
+  //       }
+  //     ],
+  //   });
+  // }
+  // const createImage = createImageTool(ctx);
+  if (ctx.chat?.id) {
+    ctx.api.sendChatAction(ctx.chat?.id, "typing");
+  }
+  const reminder = ReminderTool(ctx);
   const response = await generateText({
-    model: google(currentModel || "gemini-2.0-flash"),
+    model: google(currentModel as Parameters<typeof google>[0]),
     messages: messages,
     tools: {
       MemoryTools,
+      searchBookmarksTool,
       PersonalityTools,
-      analysis,
-      createImage,
-      // dateTimeTool,
-      // outOfContext,
+
+      dateTimeTool,
+
+      reminder
     },
-    maxSteps: 10,
     maxRetries: 1,
+    stopWhen: stepCountIs(10)
   });
-  
+
+
 
   const { response: responseBody } = response;
   const { messages: modelMessages } = responseBody;
-  const newMessages: CoreMessage[] = [
+  const newMessages: ModelMessage[] = [
     ...messages,
     ...modelMessages,
   ];

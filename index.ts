@@ -1,10 +1,12 @@
-import { logger } from "./ai/logger";
-import { bot } from "./bot";
-import { db } from "./redis";
+
+
+import { MemoryUtils } from "./memory.utils";
+import { bot } from "./src/utils/bot";
+import { logger } from "./src/utils/logger";
 
 bot.start({
   onStart: async (botInfo) => {
-    const currentPersonality = await db.get("current-personality");
+    const currentPersonality = await MemoryUtils.getCurrentPersonality();
     await logger(
       `Bot started with username ${botInfo.username} and current personality ${currentPersonality}`
     );

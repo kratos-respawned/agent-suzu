@@ -4,6 +4,7 @@ const envParser = z.object({
   AI_KEY: z.string().min(1),
   OWNER_ID: z.string().transform((val) => parseInt(val)),
   DB_URL: z.string().min(1),
+  BOOKMARK_DB_URL: z.string().min(1),
 });
 const env = (() => {
   const parsedEnv = envParser.safeParse(process.env);

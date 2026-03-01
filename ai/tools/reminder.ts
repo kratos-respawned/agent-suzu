@@ -1,8 +1,8 @@
 import { tool } from "ai";
-import { z } from "zod";
-import { queue } from "../../utils/qstash";
 import type { Context } from "grammy";
-import { logger } from "../../utils/logger";
+import { z } from "zod";
+import { logger } from "../../src/utils/logger";
+import { queue } from "../../src/utils/qstash";
 
 export const ReminderTool = (ctx: Context) => tool({
     description: "A tool to set a reminder for the user",

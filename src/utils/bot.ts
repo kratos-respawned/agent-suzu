@@ -1,11 +1,13 @@
 import { Bot, Context, GrammyError, type NextFunction } from "grammy";
-import { env } from "./env.js";
-import { google, messageHandler } from "../ai/index.js";
-import { db, deleteKeys } from "./redis.js";
-import { getMemoriesList, MemoryTools } from "../ai/tools/memory.js";
-import { getTime } from "../ai/tools/get-time.js";
-import { logger } from "./logger.js";
+import { MemoryUtils } from "../../memory.utils.js";
+
+import { messageHandler } from "../../ai/index.js";
+import { getTime } from "../../ai/tools/get-time.js";
+import { db } from "../../redis.js";
 import { splitIntoChunks } from "./chukify.js";
+import { env } from "./env.js";
+import { logger } from "./logger.js";
+
 
 const bot = new Bot(env.BOT_TOKEN);
 const middleWare = async (c: Context, next: NextFunction) => {
@@ -21,36 +23,22 @@ const middleWare = async (c: Context, next: NextFunction) => {
 bot.command("start", (ctx) => {
   ctx.reply(`Hii, ${ctx.from?.first_name}!`);
 });
-bot.use(middleWare).command("pro", async (ctx) => {
-  await db.set("current-model", "gemini-2.5-pro" satisfies Parameters<typeof google>[0]);
-  ctx.reply("Model set to Pro");
-});
-bot.use(middleWare).command("flash", async (ctx) => {
-  await db.set("current-model", "gemini-2.0-flash");
-  ctx.reply("Model set to Flash");
-});
 
 bot.use(middleWare).command("personality", async (ctx) => {
-  const personality = await db.get("current-personality");
-  if (!personality) {
-    ctx.reply("No personality set");
-    return;
-  }
-  const personalityDescription = await db.get(
-    `personality:${personality.split(" ").join("-")}`
-  );
+  const personality = await MemoryUtils.getCurrentPersonality();
+  const personalityDescription = await MemoryUtils.getCurrentPersonalityDescription(personality);
   ctx.reply(
     `Current personality: ${personality}\nDescription: ${personalityDescription}`
   );
 });
 bot.use(middleWare).command("listmemories", async (ctx) => {
-  const memories = await getMemoriesList();
+  const { memoryPrompt, currentPersonality } = await MemoryUtils.getMemoriesList();
   ctx.reply(
-    `Memories: ${memories.map((memory) => `- ${memory.value}`).join("\n")}`
+    `Memories: ${memoryPrompt.map((memory) => `- ${memory.value}`).join("\n")}`
   );
 });
 bot.use(middleWare).command("personalitylist", async (ctx) => {
-  const personalities = await db.keys("personality:*");
+  const personalities = await MemoryUtils.getPersonalityList();
   if (!personalities) {
     ctx.reply("No personalities found");
     return;
@@ -61,10 +49,7 @@ bot.use(middleWare).command("personalitylist", async (ctx) => {
   });
   ctx.reply(`Personality List: \n ${personalityList.join("\n")}`);
 });
-bot.use(middleWare).command("flashpreview", async (ctx) => {
-  await db.set("current-model", "gemini-2.5-flash" satisfies Parameters<typeof google>[0]);
-  ctx.reply("Model set to Flash Preview");
-});
+
 bot.use(middleWare).command("setpersonality", async (ctx) => {
   const message = ctx.message;
   if (!message) {
@@ -76,16 +61,16 @@ bot.use(middleWare).command("setpersonality", async (ctx) => {
     ctx.reply("Please provide a personality to set");
     return;
   }
-  const personalityDescription = await db.get(`personality:${personality}`);
+  const personalityDescription = await MemoryUtils.getCurrentPersonalityDescription(personality);
   if (!personalityDescription) {
     ctx.reply("Personality not found");
     return;
   }
-  await db.set("current-personality", personality);
+  await MemoryUtils.setCurrentPersonality(personality);
   ctx.reply(`Current personality set to ${personality}`);
 });
 bot.use(middleWare).command("clearconversation", async (ctx) => {
-  const currentPersonality = await db.get("current-personality");
+  const currentPersonality = await MemoryUtils.getCurrentPersonality();
   if (!currentPersonality) {
     ctx.reply("No personality set");
     return;
@@ -100,7 +85,7 @@ bot.use(middleWare).command("clearall", async (ctx) => {
     return;
   }
   await db.del(`${currentPersonality}:user-messages`);
-  await deleteKeys(`${currentPersonality}:memory:*`);
+  await MemoryUtils.deleteKeys(`${currentPersonality}:memory:*`);
   ctx.reply("Conversation and memories cleared");
 });
 bot.use(middleWare).command("time", (ctx) => {
@@ -112,14 +97,7 @@ bot.api.setMyCommands([
     command: "start",
     description: "Start the bot",
   },
-  {
-    command: "pro",
-    description: "Set the model to Pro",
-  },
-  {
-    command: "flash",
-    description: "Set the model to Flash",
-  },
+
   {
     command: "personality",
     description: "Get the current personality",
@@ -132,14 +110,7 @@ bot.api.setMyCommands([
     command: "personalitylist",
     description: "Get the list of personalities",
   },
-  {
-    command: "flashpreview",
-    description: "Set the model to Flash Preview",
-  },
-  {
-    command: "setpersonality",
-    description: "Set the current personality",
-  },
+
   {
     command: "clearconversation",
     description: "Clear the conversation",
@@ -153,61 +124,61 @@ bot.api.setMyCommands([
     description: "Clear the conversation and memories",
   },
 ]);
-bot.use(middleWare).on([":photo", ":sticker"], async (ctx) => {
-  const photo = ctx.message?.photo?.at(0)?.file_id || ctx.message?.sticker;
-  const caption = ctx.message?.caption;
-  if (!photo) {
-    await ctx.reply("Please provide a photo to process");
-    return;
-  }
-  const file = await ctx.getFile();
-  try {
-    const response = await messageHandler(file, ctx, caption);
-    const messageParts = splitIntoChunks(response.text, 4000);
-    if (messageParts) {
-      for (const part of messageParts) {
-        ctx.reply(part);
-      }
-    } else {
-      ctx.reply(response.text || "No response from bot");
-    }
-  } catch (err) {
-    console.log(err)
-    await logger(`Error occurred in bot: ${err instanceof Error ? err.message : "Unknown error"}`);
-    ctx.reply("Error occurred while processing the message");
-  }
+// bot.use(middleWare).on([":photo", ":sticker"], async (ctx) => {
+//   const photo = ctx.message?.photo?.at(0)?.file_id || ctx.message?.sticker;
+//   const caption = ctx.message?.caption;
+//   if (!photo) {
+//     await ctx.reply("Please provide a photo to process");
+//     return;
+//   }
+//   const file = await ctx.getFile();
+//   try {
+//     const response = await messageHandler(file, ctx, caption);
+//     const messageParts = splitIntoChunks(response.text, 4000);
+//     if (messageParts) {
+//       for (const part of messageParts) {
+//         ctx.reply(part);
+//       }
+//     } else {
+//       ctx.reply(response.text || "No response from bot");
+//     }
+//   } catch (err) {
+//     console.log(err)
+//     await logger(`Error occurred in bot: ${err instanceof Error ? err.message : "Unknown error"}`);
+//     ctx.reply("Error occurred while processing the message");
+//   }
 
-  return;
-})
-bot.use(middleWare).on([":file"], async (ctx) => {
-  if (ctx.message?.photo) {
-    return;
-  }
-  console.dir(ctx.message, { depth: Infinity })
-  const document = ctx.message?.document;
-  const caption = ctx.message?.caption;
-  if (!document) {
-    return;
-  }
-  const mimeType = document.mime_type;
+//   return;
+// })
+// bot.use(middleWare).on([":file"], async (ctx) => {
+//   if (ctx.message?.photo) {
+//     return;
+//   }
 
-  const file = await ctx.getFile();
-  try {
-    const response = await messageHandler(file, ctx, caption, mimeType);
-    const messageParts = splitIntoChunks(response.text, 4000);
-    if (messageParts) {
-      for (const part of messageParts) {
-        ctx.reply(part);
-      }
-    } else {
-      ctx.reply(response.text || "No response from bot");
-    }
-  } catch (err) {
-    console.log(err)
-    await logger(`Error occurred in bot: ${err instanceof Error ? err.message : "Unknown error"}`);
-    ctx.reply("Error occurred while processing the message");
-  }
-})
+//   const document = ctx.message?.document;
+//   const caption = ctx.message?.caption;
+//   if (!document) {
+//     return;
+//   }
+//   const mimeType = document.mime_type;
+
+//   const file = await ctx.getFile();
+//   try {
+//     const response = await messageHandler(file, ctx, caption, mimeType);
+//     const messageParts = splitIntoChunks(response.text, 4000);
+//     if (messageParts) {
+//       for (const part of messageParts) {
+//         ctx.reply(part);
+//       }
+//     } else {
+//       ctx.reply(response.text || "No response from bot");
+//     }
+//   } catch (err) {
+//     console.log(err)
+//     await logger(`Error occurred in bot: ${err instanceof Error ? err.message : "Unknown error"}`);
+//     ctx.reply("Error occurred while processing the message");
+//   }
+// })
 bot.use(middleWare).on("message", async (ctx) => {
   const replyToMessage = ctx.message?.reply_to_message;
   const message = ctx.message;
@@ -248,3 +219,4 @@ bot.catch(async (err) => {
 });
 
 export { bot };
+

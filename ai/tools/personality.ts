@@ -1,12 +1,15 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { db, deleteKeys } from "../../redis";
-import { logger } from "../logger";
+
+import { MemoryUtils } from "../../memory.utils.js";
+
+import { db } from "../../redis.js";
+import { logger } from "../../src/utils/logger.js";
 
 export const PersonalityTools = tool({
   description:
     "A tool to get the current personality of the model, set the current personality of the model, get the list of personalities that the user has created for the model, and create a new personality for the model and delete a personality for the model.",
-  parameters: z.object({
+  inputSchema: z.object({
     personality: z.string().describe("The name of the personality"),
     description: z
       .string()
@@ -19,166 +22,105 @@ export const PersonalityTools = tool({
   }),
   execute: async (
     { personality, description, action },
-    { toolCallId, messages }
+
   ) => {
     switch (action) {
       case "get":
-        return await getCurrentPersonality.execute(
-          {},
-          { toolCallId, messages }
-        );
+        return await getCurrentPersonality();
       case "set":
-        return await setCurrentPersonality.execute(
-          { personality },
-          { toolCallId, messages }
-        );
+        return await setCurrentPersonality({ personality });
       case "list":
-        return await getPersonalityList.execute({}, { toolCallId, messages });
+        return await getPersonalityList();
       case "create":
-        return await createPersonality.execute(
-          { personality, description },
-          { toolCallId, messages }
-        );
+        return await createPersonality({ personality, description });
       case "delete":
-        return await deletePersonality.execute(
-          { personality },
-          { toolCallId, messages }
-        );
+        return await deletePersonality({ personality });
     }
   },
 });
 
-const getCurrentPersonality = tool({
-  description:
-    "Get the current personality of the model, that the user has set",
-  parameters: z.object({}),
-  execute: async ({}) => {
-    const currentPersonality = await db.get("current-personality");
-    if (!currentPersonality) {
-      await db.set("current-personality", "assistant");
-      await logger(`No current personality found, set to assistant`);
-      return {
-        success: true,
-        message: "Current personality set to assistant",
-      };
-    }
-    const currentPersonalityDescription = await db.get(
-      `personality:${currentPersonality}`
-    );
-    await logger(`${currentPersonality} invoked getCurrentPersonality tool`);
+const getCurrentPersonality = async () => {
+  const currentPersonality = await MemoryUtils.getCurrentPersonality();
+  const currentPersonalityDescription = await MemoryUtils.getCurrentPersonalityDescription(currentPersonality);
+  await logger(`${currentPersonality} invoked getCurrentPersonality tool`);
+  return {
+    success: true,
+    message: `Current personality set to ${currentPersonality}, ${currentPersonalityDescription}`,
+  };
+}
+const setCurrentPersonality = async ({ personality }: { personality: string }) => {
+  const currentPersonality = await db.get("current-personality");
+  const personalityExists = await db.get(
+    `personality:${personality.split(" ").join("-")}`
+  );
+  if (!personalityExists) {
     return {
-      success: true,
-      message: `Current personality set to ${currentPersonality}, ${currentPersonalityDescription}`,
+      success: false,
+      message:
+        "Personality not found make sure to get the personality list first and then set the current personality if you want to set a new personality",
     };
-  },
-});
+  }
+  await logger(
+    `${currentPersonality} set current personality to ${personality}`
+  );
+  await db.set("current-personality", personality);
+  await db.set(`${currentPersonality}:reset`, "done");
+  return {
+    success: true,
+    message: `Current personality set to ${personality}`,
+  };
+}
 
-const setCurrentPersonality = tool({
-  description: "Change the current personality of the model",
-  parameters: z.object({
-    personality: z.string(),
-  }),
-  execute: async ({ personality }) => {
-    const currentPersonality = await db.get("current-personality");
-    const personalityExists = await db.get(
-      `personality:${personality.split(" ").join("-")}`
-    );
-    if (!personalityExists) {
-      return {
-        success: false,
-        message:
-          "Personality not found make sure to get the personality list first and then set the current personality if you want to set a new personality",
-      };
-    }
-    await logger(
-      `${currentPersonality} set current personality to ${personality}`
-    );
-    await db.set("current-personality", personality);
-    await db.set(`${currentPersonality}:reset`, "done");
+const getPersonalityList = async () => {
+  const personalities = await db.keys("personality:*");
+  if (!personalities) {
     return {
       success: true,
-      message: `Current personality set to ${personality}`,
+      message: "No personalities found",
     };
-  },
-});
+  }
+  // return each personality with its description
+  const currentPersonality = await db.get("current-personality");
+  await logger(`${currentPersonality} invoked getPersonalityList tool`);
+  const personalityList = await Promise.all(
+    personalities.map(async (personality) => {
+      const personalityName = personality.split(":")[1];
+      const personalityDescription = await db.get(personality);
+      return `${personalityName}: ${personalityDescription}`;
+    })
+  );
+  return {
+    success: true,
+    message: personalityList.join("\n"),
+  };
+}
 
-const getPersonalityList = tool({
-  description:
-    "Get the list of personalities that the user has created for the model",
-  parameters: z.object({}),
-  execute: async ({}) => {
-    const personalities = await db.keys("personality:*");
-    if (!personalities) {
-      return {
-        success: true,
-        message: "No personalities found",
-      };
-    }
-    // return each personality with its description
-    const currentPersonality = await db.get("current-personality");
-    await logger(`${currentPersonality} invoked getPersonalityList tool`);
-    const personalityList = await Promise.all(
-      personalities.map(async (personality) => {
-        const personalityName = personality.split(":")[1];
-        const personalityDescription = await db.get(personality);
-        return `${personalityName}: ${personalityDescription}`;
-      })
-    );
+const createPersonality = async ({ personality, description }: { personality: string, description: string }) => {
+  const personalityName = personality.toLowerCase().split(" ").join("-");
+  const existingPersonality = await db.get(`personality:${personalityName}`);
+  if (existingPersonality) {
     return {
-      success: true,
-      message: personalityList.join("\n"),
+      success: false,
+      message:
+        "Personality already exists, if you want to change the description of the personality use the set personality tool",
     };
-  },
-});
-
-const createPersonality = tool({
-  description: "Create a new personality for the model.",
-  parameters: z.object({
-    personality: z
-      .string()
-      .describe(
-        "The personality of the model keep it one word or two words and in normal text format"
-      ),
-    description: z
-      .string()
-      .describe(
-        "The description of the personality in very detailed format to make it more accurate and helpful"
-      ),
-  }),
-  execute: async ({ personality, description }) => {
-    const personalityName = personality.toLowerCase().split(" ").join("-");
-    const existingPersonality = await db.get(`personality:${personalityName}`);
-    if (existingPersonality) {
-      return {
-        success: false,
-        message:
-          "Personality already exists, if you want to change the description of the personality use the set personality tool",
-      };
-    }
-    await db.set(`personality:${personalityName}`, description);
-    const currentPersonality = await db.get("current-personality");
-    await logger(`${currentPersonality} created personality ${personality}`);
-    await db.set(`${currentPersonality}:reset`, "done");
-    return {
-      success: true,
-      message: `Personality created successfully`,
-    };
-  },
-});
-
-const deletePersonality = tool({
-  description: "Delete a personality for the model.",
-  parameters: z.object({
-    personality: z.string(),
-  }),
-  execute: async ({ personality }) => {
-    await deleteKeys(`${personality}:reset`);
-    await deleteKeys(`${personality}:user-messages`);
-    await deleteKeys(`${personality}:memory:*`);
-    await deleteKeys(`personality:${personality.split(" ").join("-")}`);
-    return {
-      success: true,
-      message: `Personality deleted successfully`,
-    };
-  },
-});
+  }
+  await db.set(`personality:${personalityName}`, description);
+  const currentPersonality = await db.get("current-personality");
+  await logger(`${currentPersonality} created personality ${personality}`);
+  await db.set(`${currentPersonality}:reset`, "done");
+  return {
+    success: true,
+    message: `Personality created successfully`,
+  };
+}
+const deletePersonality = async ({ personality }: { personality: string }) => {
+  await MemoryUtils.deleteKeys(`${personality}:reset`);
+  await MemoryUtils.deleteKeys(`${personality}:user-messages`);
+  await MemoryUtils.deleteKeys(`${personality}:memory:*`);
+  await MemoryUtils.deleteKeys(`personality:${personality.split(" ").join("-")}`);
+  return {
+    success: true,
+    message: `Personality deleted successfully`,
+  };
+}
