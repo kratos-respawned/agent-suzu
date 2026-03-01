@@ -7,7 +7,7 @@ import { env } from "../../env"
 
 
 
-const embeddingModel = google.embedding("gemini-embedding-001")
+
 const VECTOR_DIM = 768
 const redis = new Redis(env.BOOKMARK_DB_URL)
 
@@ -59,6 +59,7 @@ async function multiSearchBookmarks(queries: string[], topK = 3) {
 }
 
 async function searchBookmarks(query: string, topK = 5) {
+    const embeddingModel = google.embedding("gemini-embedding-001")
     const { embedding } = await embed({
         model: embeddingModel,
         value: query,
